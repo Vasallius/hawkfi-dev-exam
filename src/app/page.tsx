@@ -7,8 +7,7 @@ import {
 } from "@orca-so/whirlpools-sdk";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { useEffect, useState } from "react";
-import LiquidityChart from "../components/LiquidityChart";
-import PoolInfo from "../components/PoolInfo";
+import PriceRange from "../components/PriceRange";
 import { HistogramBin, PoolDisplayInfo } from "../types/pool";
 import { RPC_ENDPOINT, SOL_USDC_POOL_ADDRESS } from "../utils/constants";
 import {
@@ -41,14 +40,11 @@ export default function Home() {
         );
 
         const poolAddress = new PublicKey(SOL_USDC_POOL_ADDRESS);
-        console.log("Fetching pool data for:", poolAddress.toBase58());
-
         const fetchedPoolData = await ctx.fetcher.getPool(poolAddress);
         if (!fetchedPoolData) {
           throw new Error("Failed to fetch pool data");
         }
 
-        // Get token decimals
         const decimalsA = await getTokenDecimals(
           connection,
           fetchedPoolData.tokenMintA
@@ -58,14 +54,12 @@ export default function Home() {
           fetchedPoolData.tokenMintB
         );
 
-        // Calculate current price
         const price = PriceMath.sqrtPriceX64ToPrice(
           fetchedPoolData.sqrtPrice,
           decimalsA,
           decimalsB
         );
 
-        // Create pool info object
         const poolDisplayInfo: PoolDisplayInfo = {
           poolAddress: fetchedPoolData.whirlpoolsConfig.toBase58(),
           tokenA: {
@@ -87,7 +81,6 @@ export default function Home() {
         setPoolInfo(poolDisplayInfo);
         setLoading(false);
 
-        // Create liquidity histogram
         setHistogramLoading(true);
         const liquidityPoints = await createLiquidityHistogram(
           ctx,
@@ -116,45 +109,36 @@ export default function Home() {
   return (
     <Box
       sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
         minHeight: "100vh",
         backgroundColor: "#070D0AE5",
         color: "white",
         p: 3,
-        fontFamily: "monospace",
       }}
     >
-      <Typography variant="h4" component="h1" sx={{ mb: 3, color: "#46EB80" }}>
-        SOL/USDC Pool Liquidity Analysis
-      </Typography>
-
       {error && (
         <Typography sx={{ color: "red", mb: 2 }}>Error: {error}</Typography>
       )}
 
-      {loading && (
-        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+      {loading ? (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <CircularProgress size={20} sx={{ mr: 1 }} />
           <Typography>Loading pool data...</Typography>
         </Box>
+      ) : (
+        poolInfo && (
+          <PriceRange
+            currentPrice={poolInfo.currentPrice}
+            histogramData={histogramData}
+            histogramLoading={histogramLoading}
+          />
+        )
       )}
-
-      {poolInfo && <PoolInfo poolInfo={poolInfo} />}
-
-      {histogramLoading && (
-        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-          <CircularProgress size={20} sx={{ mr: 1 }} />
-          <Typography>Creating liquidity histogram...</Typography>
-        </Box>
-      )}
-
-      <LiquidityChart
-        histogramData={histogramData}
-        isLoading={histogramLoading}
-      />
     </Box>
   );
 }
