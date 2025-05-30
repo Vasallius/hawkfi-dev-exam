@@ -1,9 +1,5 @@
 "use client";
-import {
-  Add as AddIcon,
-  Refresh as RefreshIcon,
-  Remove as RemoveIcon,
-} from "@mui/icons-material";
+import { Refresh as RefreshIcon } from "@mui/icons-material";
 import { Box, Button, IconButton, TextField, Typography } from "@mui/material";
 import { useState } from "react";
 import { HistogramBin } from "../types/pool";
@@ -53,7 +49,7 @@ export default function PriceRange({
           <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
             <Typography
               sx={{
-                color: "#BD61F5",
+                color: "#dc92fc",
                 fontSize: "14px",
                 letterSpacing: "0.1px",
               }}
@@ -67,8 +63,8 @@ export default function PriceRange({
           <Box
             sx={{
               display: "flex",
-              gap: 1,
-              bgcolor: "#1A1A1A",
+              gap: 0.5,
+              bgcolor: "white",
               p: 1,
               borderRadius: 2,
             }}
@@ -76,12 +72,19 @@ export default function PriceRange({
             <IconButton
               size="small"
               sx={{
-                bgcolor: "rgba(255, 255, 255, 0.04)",
-                borderRadius: 1.5,
-                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.08)" },
+                p: 0,
+                "&:hover": { bgcolor: "transparent" },
               }}
             >
-              <RemoveIcon fontSize="small" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                fill="#8B948F"
+                viewBox="0 0 256 256"
+              >
+                <path d="M176,128a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,128Zm56,0A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"></path>
+              </svg>
             </IconButton>
             <TextField
               fullWidth
@@ -92,20 +95,32 @@ export default function PriceRange({
                 disableUnderline: true,
                 sx: {
                   fontSize: "16px",
-                  color: "white",
                   textAlign: "center",
+                  p: 1,
+                },
+              }}
+              sx={{
+                "& input": {
+                  color: "black",
                 },
               }}
             />
             <IconButton
               size="small"
               sx={{
-                bgcolor: "rgba(255, 255, 255, 0.04)",
-                borderRadius: 1.5,
-                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.08)" },
+                p: 0,
+                "&:hover": { bgcolor: "transparent" },
               }}
             >
-              <AddIcon fontSize="small" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                fill="#8B948F"
+                viewBox="0 0 256 256"
+              >
+                <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48-88a8,8,0,0,1-8,8H136v32a8,8,0,0,1-16,0V136H88a8,8,0,0,1,0-16h32V88a8,8,0,0,1,16,0v32h32A8,8,0,0,1,176,128Z"></path>
+              </svg>
             </IconButton>
           </Box>
         </Box>
@@ -114,7 +129,7 @@ export default function PriceRange({
           <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
             <Typography
               sx={{
-                color: "#BD61F5",
+                color: "#dc92fc",
                 fontSize: "14px",
                 letterSpacing: "0.1px",
               }}
@@ -128,8 +143,8 @@ export default function PriceRange({
           <Box
             sx={{
               display: "flex",
-              gap: 1,
-              bgcolor: "#1A1A1A",
+              gap: 0.5,
+              bgcolor: "white",
               p: 1,
               borderRadius: 2,
             }}
@@ -137,12 +152,19 @@ export default function PriceRange({
             <IconButton
               size="small"
               sx={{
-                bgcolor: "rgba(255, 255, 255, 0.04)",
-                borderRadius: 1.5,
-                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.08)" },
+                p: 0,
+                "&:hover": { bgcolor: "transparent" },
               }}
             >
-              <RemoveIcon fontSize="small" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                fill="#8B948F"
+                viewBox="0 0 256 256"
+              >
+                <path d="M176,128a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,128Zm56,0A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"></path>
+              </svg>
             </IconButton>
             <TextField
               fullWidth
@@ -153,20 +175,32 @@ export default function PriceRange({
                 disableUnderline: true,
                 sx: {
                   fontSize: "16px",
-                  color: "white",
                   textAlign: "center",
+                  p: 1,
+                },
+              }}
+              sx={{
+                "& input": {
+                  color: "black",
                 },
               }}
             />
             <IconButton
               size="small"
               sx={{
-                bgcolor: "rgba(255, 255, 255, 0.04)",
-                borderRadius: 1.5,
-                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.08)" },
+                p: 0,
+                "&:hover": { bgcolor: "transparent" },
               }}
             >
-              <AddIcon fontSize="small" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                fill="#8B948F"
+                viewBox="0 0 256 256"
+              >
+                <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48-88a8,8,0,0,1-8,8H136v32a8,8,0,0,1-16,0V136H88a8,8,0,0,1,0-16h32V88a8,8,0,0,1,16,0v32h32A8,8,0,0,1,176,128Z"></path>
+              </svg>
             </IconButton>
           </Box>
         </Box>
