@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -63,7 +64,14 @@ export default function LiquidityChart({
             fill="#46EB80"
             opacity={0.8}
             name="Liquidity (Millions)"
-          />
+          >
+            {histogramData.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={entry.isActive ? "#46EB80" : "#666666"}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
 

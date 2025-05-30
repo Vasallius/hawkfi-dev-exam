@@ -14,7 +14,12 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import Decimal from "decimal.js";
-import { HistogramBin, LiquidityPoint, ParsedAccountData } from "../types/pool";
+import {
+  HistogramBin,
+  LiquidityPoint,
+  ParsedAccountData,
+  PoolDisplayInfo,
+} from "../types/pool";
 import { KNOWN_TOKENS } from "./constants";
 
 // Dummy wallet for read-only access
@@ -48,6 +53,7 @@ export const getDisplaySymbol = (mintAddress: PublicKey | undefined) => {
 };
 
 export async function createLiquidityHistogram(
+  poolDisplayInfo: PoolDisplayInfo,
   ctx: WhirlpoolContext,
   poolAddress: PublicKey,
   currentTickIndex: number,
@@ -58,22 +64,55 @@ export async function createLiquidityHistogram(
 ): Promise<LiquidityPoint[]> {
   console.log("Creating liquidity histogram...");
 
-  const tickRange = 100;
-  const startTick = currentTickIndex - tickRange * tickSpacing;
-  const endTick = currentTickIndex + tickRange * tickSpacing;
+  const currentPrice = new Decimal(poolDisplayInfo.currentPrice);
 
-  console.log(
-    `Tick range: ${startTick} to ${endTick} (current: ${currentTickIndex})`
+  const minPrice = currentPrice.mul(0.9);
+  const maxPrice = currentPrice.mul(1.1);
+  const leftMostPrice = currentPrice.mul(0.8);
+  const rightMostPrice = currentPrice.mul(1.2);
+
+  const minPriceTick = PriceMath.priceToInitializableTickIndex(
+    minPrice,
+    tokenDecimalsA,
+    tokenDecimalsB,
+    tickSpacing
+  );
+  const maxPriceTick = PriceMath.priceToInitializableTickIndex(
+    maxPrice,
+    tokenDecimalsA,
+    tokenDecimalsB,
+    tickSpacing
+  );
+
+  const leftMostPriceTick = PriceMath.priceToInitializableTickIndex(
+    leftMostPrice,
+    tokenDecimalsA,
+    tokenDecimalsB,
+    tickSpacing
+  );
+  const rightMostPriceTick = PriceMath.priceToInitializableTickIndex(
+    rightMostPrice,
+    tokenDecimalsA,
+    tokenDecimalsB,
+    tickSpacing
   );
 
   const tickIndices: number[] = [];
+
+  // Get nearest initializable tick index from lower bounder
+  // Iterate until upper bound initializable tick index
   for (
-    let tick = TickUtil.getInitializableTickIndex(startTick, tickSpacing);
-    tick <= endTick;
+    let tick = TickUtil.getInitializableTickIndex(
+      leftMostPriceTick,
+      tickSpacing
+    );
+    tick <= rightMostPriceTick;
     tick = TickUtil.getNextInitializableTickIndex(tick, tickSpacing)
   ) {
     tickIndices.push(tick);
   }
+
+  // Get unique start tick indices of tick-arrays
 
   const uniqueStartTicks = new Set<number>();
   tickIndices.forEach((tickIndex) => {
@@ -81,9 +120,13 @@ export async function createLiquidityHistogram(
     uniqueStartTicks.add(startTickIndex);
   });
 
+  // Get tick-array PDAs
+
   const tickArrayPDAs = Array.from(uniqueStartTicks).map((startTick) =>
     PDAUtil.getTickArray(ctx.program.programId, poolAddress, startTick)
   );
+
+  // Get tick-array data (to reference when looking up tick data)
 
   const tickArrayAddresses = tickArrayPDAs.map((pda) => pda.publicKey);
   const tickArraysData = await ctx.fetcher.getTickArrays(tickArrayAddresses);
@@ -130,6 +173,7 @@ export async function createLiquidityHistogram(
           liquidityGross,
           price: price.toNumber(),
           priceFormatted: price.toFixed(6),
+          isActive: tickIndex >= minPriceTick && tickIndex <= maxPriceTick,
         });
       }
     } catch (error) {
@@ -146,6 +190,7 @@ export async function createLiquidityHistogram(
         liquidityGross: "0",
         price: price.toNumber(),
         priceFormatted: price.toFixed(6),
+        isActive: tickIndex >= minPriceTick && tickIndex <= maxPriceTick,
       });
     }
   }
@@ -180,6 +225,7 @@ export function createHistogramBins(
       change: parseFloat(point.liquidityNet) / 1e6,
       priceLowNum: point.price,
       priceHighNum: point.price,
+      isActive: point.isActive,
     };
   });
 

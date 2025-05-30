@@ -23,6 +23,7 @@ export interface LiquidityPoint {
   liquidityGross: string;
   price: number;
   priceFormatted: string;
+  isActive: boolean;
 }
 
 export interface HistogramBin {
@@ -32,6 +33,7 @@ export interface HistogramBin {
   change: number;
   priceLowNum?: number;
   priceHighNum?: number;
+  isActive: boolean;
 }
 
 export interface TokenDecimals {

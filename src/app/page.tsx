@@ -83,6 +83,7 @@ export default function Home() {
 
         setHistogramLoading(true);
         const liquidityPoints = await createLiquidityHistogram(
+          poolDisplayInfo,
           ctx,
           poolAddress,
           fetchedPoolData.tickCurrentIndex,
