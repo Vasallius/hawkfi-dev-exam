@@ -9,9 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "next": "15.1.8",
+    "@coral-xyz/anchor": "0.29.0",
     "@emotion/cache": "^11.11.0",
     "@emotion/react": "^11.11.4",
     "@emotion/server": "^11.11.0",
@@ -27,18 +25,28 @@
     "@mui/system": "^5.15.15",
     "@mui/x-charts": "^7.11.0",
     "@mui/x-data-grid": "^7.11.0",
+    "@orca-so/common-sdk": "^0.6.11",
+    "@orca-so/whirlpools-sdk": "^0.14.0",
     "@phosphor-icons/react": "^2.0.15",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.2",
+    "decimal.js": "^10.5.0",
+    "next": "15.1.8",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^2.15.3",
     "zod": "^3.22.4",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@types/bn.js": "^5.1.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.1.8",
-    "@eslint/eslintrc": "^3"
+    "typescript": "^5"
   },
   "packageManager": "yarn@1.22.21+sha1.1959a18351b811cdeedbd484a8f86c3cc3bbaf72"
 }
