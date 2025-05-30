@@ -1,6 +1,8 @@
 "use client";
 import { Refresh as RefreshIcon } from "@mui/icons-material";
 import { Box, Button, IconButton, TextField, Typography } from "@mui/material";
+import { PriceMath, TickUtil } from "@orca-so/whirlpools-sdk";
+import Decimal from "decimal.js";
 import { useState } from "react";
 import { HistogramBin } from "../types/pool";
 import CurrentPoolPrice from "./CurrentPoolPrice";
@@ -12,18 +14,107 @@ interface PriceRangeProps {
   currentPrice: string;
   histogramData: HistogramBin[];
   histogramLoading: boolean;
+  tickSpacing: number;
 }
+
+const USDC_DECIMALS = 6;
+const SOL_DECIMALS = 9;
 
 export default function PriceRange({
   currentPrice,
   histogramData,
   histogramLoading,
+  tickSpacing,
 }: PriceRangeProps) {
   const [rangeType, setRangeType] = useState<"customRange" | "fullRange">(
     "customRange"
   );
-  const [minPrice, setMinPrice] = useState("143.02973025");
-  const [maxPrice, setMaxPrice] = useState("174.76504829");
+
+  // Initial ticks based on ±10% from current price
+  const currentPriceNum = parseFloat(currentPrice);
+  const initialMinTick = TickUtil.getInitializableTickIndex(
+    PriceMath.priceToInitializableTickIndex(
+      new Decimal(currentPriceNum * 0.9),
+      USDC_DECIMALS,
+      SOL_DECIMALS,
+      tickSpacing
+    ),
+    tickSpacing
+  );
+  const initialMaxTick = TickUtil.getInitializableTickIndex(
+    PriceMath.priceToInitializableTickIndex(
+      new Decimal(currentPriceNum * 1.1),
+      USDC_DECIMALS,
+      SOL_DECIMALS,
+      tickSpacing
+    ),
+    tickSpacing
+  );
+
+  const [minTick, setMinTick] = useState(initialMinTick);
+  const [maxTick, setMaxTick] = useState(initialMaxTick);
+
+  // Convert ticks to price for display
+  const minPrice = PriceMath.tickIndexToPrice(
+    minTick,
+    USDC_DECIMALS,
+    SOL_DECIMALS
+  ).toFixed(8);
+  const maxPrice = PriceMath.tickIndexToPrice(
+    maxTick,
+    USDC_DECIMALS,
+    SOL_DECIMALS
+  ).toFixed(8);
+
+  // Calculate percentage difference from current price
+  const minPercent = (
+    ((parseFloat(minPrice) - currentPriceNum) / currentPriceNum) *
+    100
+  ).toFixed(2);
+  const maxPercent = (
+    ((parseFloat(maxPrice) - currentPriceNum) / currentPriceNum) *
+    100
+  ).toFixed(2);
+
+  // Handle increment/decrement
+  const adjustTick = (tick: number, increment: boolean) =>
+    increment
+      ? TickUtil.getNextInitializableTickIndex(tick, tickSpacing)
+      : TickUtil.getPrevInitializableTickIndex(tick, tickSpacing);
+
+  // Handle user input for price fields
+  const handleMinPriceInput = (value: string) => {
+    const tick = TickUtil.getInitializableTickIndex(
+      PriceMath.priceToInitializableTickIndex(
+        new Decimal(value),
+        USDC_DECIMALS,
+        SOL_DECIMALS,
+        tickSpacing
+      ),
+      tickSpacing
+    );
+    // Prevent minTick from exceeding maxTick
+    if (tick <= maxTick) setMinTick(tick);
+  };
+  const handleMaxPriceInput = (value: string) => {
+    const tick = TickUtil.getInitializableTickIndex(
+      PriceMath.priceToInitializableTickIndex(
+        new Decimal(value),
+        USDC_DECIMALS,
+        SOL_DECIMALS,
+        tickSpacing
+      ),
+      tickSpacing
+    );
+    // Prevent maxTick from being less than minTick
+    if (tick >= minTick) setMaxTick(tick);
+  };
+
+  // Reset to initial range
+  const handleReset = () => {
+    setMinTick(initialMinTick);
+    setMaxTick(initialMaxTick);
+  };
 
   return (
     <Box sx={{ width: "100%", maxWidth: 1200, mx: "auto", p: 3 }}>
@@ -57,7 +148,7 @@ export default function PriceRange({
               MINIMUM PRICE
             </Typography>
             <Typography sx={{ color: "#FF5C5C", fontSize: "14px" }}>
-              -10.08%
+              {minPercent}%
             </Typography>
           </Box>
           <Box
@@ -71,6 +162,7 @@ export default function PriceRange({
           >
             <IconButton
               size="small"
+              onClick={() => setMinTick(adjustTick(minTick, false))}
               sx={{
                 p: 0,
                 "&:hover": { bgcolor: "transparent" },
@@ -89,7 +181,7 @@ export default function PriceRange({
             <TextField
               fullWidth
               value={minPrice}
-              onChange={(e) => setMinPrice(e.target.value)}
+              onChange={(e) => handleMinPriceInput(e.target.value)}
               variant="standard"
               InputProps={{
                 disableUnderline: true,
@@ -107,6 +199,7 @@ export default function PriceRange({
             />
             <IconButton
               size="small"
+              onClick={() => setMinTick(adjustTick(minTick, true))}
               sx={{
                 p: 0,
                 "&:hover": { bgcolor: "transparent" },
@@ -140,7 +233,7 @@ export default function PriceRange({
                 MAXIMUM PRICE
               </Typography>
               <Typography sx={{ color: "#46EB80", fontSize: "14px" }}>
-                +9.88%
+                {maxPercent}%
               </Typography>
             </Box>
             <Box
@@ -154,6 +247,7 @@ export default function PriceRange({
             >
               <IconButton
                 size="small"
+                onClick={() => setMaxTick(adjustTick(maxTick, false))}
                 sx={{
                   p: 0,
                   "&:hover": { bgcolor: "transparent" },
@@ -172,7 +266,7 @@ export default function PriceRange({
               <TextField
                 fullWidth
                 value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
+                onChange={(e) => handleMaxPriceInput(e.target.value)}
                 variant="standard"
                 InputProps={{
                   disableUnderline: true,
@@ -190,6 +284,7 @@ export default function PriceRange({
               />
               <IconButton
                 size="small"
+                onClick={() => setMaxTick(adjustTick(maxTick, true))}
                 sx={{
                   p: 0,
                   "&:hover": { bgcolor: "transparent" },
@@ -226,10 +321,7 @@ export default function PriceRange({
         <Button
           variant="text"
           startIcon={<RefreshIcon />}
-          onClick={() => {
-            setMinPrice("143.02973025");
-            setMaxPrice("174.76504829");
-          }}
+          onClick={handleReset}
           sx={{
             color: "rgba(255, 255, 255, 0.5)",
             textTransform: "none",

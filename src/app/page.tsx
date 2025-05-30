@@ -137,6 +137,7 @@ export default function Home() {
             currentPrice={poolInfo.currentPrice}
             histogramData={histogramData}
             histogramLoading={histogramLoading}
+            tickSpacing={poolInfo.tickSpacing}
           />
         )
       )}

@@ -68,8 +68,8 @@ export async function createLiquidityHistogram(
 
   const minPrice = currentPrice.mul(0.9);
   const maxPrice = currentPrice.mul(1.1);
-  const leftMostPrice = currentPrice.mul(0.8);
-  const rightMostPrice = currentPrice.mul(1.2);
+  const leftMostPrice = minPrice.mul(0.9);
+  const rightMostPrice = maxPrice.mul(1.1);
 
   const minPriceTick = PriceMath.priceToInitializableTickIndex(
     minPrice,
