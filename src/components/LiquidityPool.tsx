@@ -18,7 +18,9 @@ export default function LiquidityPool() {
     data: poolData,
     isLoading: poolLoading,
     error: poolError,
-  } = usePoolData();
+  } = usePoolData({
+    refetchInterval: 10000, // Refetch every 10 seconds
+  });
   const poolInfo = poolData?.poolInfo ?? null;
   const ctx = poolData?.ctx ?? null;
 

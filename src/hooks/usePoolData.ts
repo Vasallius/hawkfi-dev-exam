@@ -1,4 +1,3 @@
-// src/hooks/usePoolData.ts
 import {
   ORCA_WHIRLPOOL_PROGRAM_ID,
   PriceMath,
@@ -63,11 +62,12 @@ const fetchPoolData = async () => {
   };
 };
 
-export function usePoolData() {
+export function usePoolData(options?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: ["poolData"],
     queryFn: fetchPoolData,
     staleTime: 1000 * 30, // 30 seconds
     gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchInterval: options?.refetchInterval,
   });
 }
