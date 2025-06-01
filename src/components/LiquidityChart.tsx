@@ -1,7 +1,7 @@
 import { Box, CircularProgress, Slider, Typography } from "@mui/material";
 import { PriceMath } from "@orca-so/whirlpools-sdk";
 import Decimal from "decimal.js";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react"; // Import useRef
 import {
   Bar,
   BarChart,
@@ -13,29 +13,17 @@ import {
 } from "recharts";
 import { HistogramBin } from "../types/pool";
 
-// Debounce utility function (can be placed here or in a shared utils file)
-function debounce<T extends (...args: any[]) => void>(func: T, delay: number) {
-  let timeout: NodeJS.Timeout;
-  return function (this: any, ...args: Parameters<T>) {
-    const context = this;
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(context, args), delay);
-  };
-}
-
 interface LiquidityChartProps {
   histogramData: HistogramBin[];
   isLoading: boolean;
-  // minTick / maxTick are the DEBOUNCED, "official" user-selected range from the parent
+  isFetching?: boolean;
   minTick: number;
   maxTick: number;
-  // Callbacks to update the parent's (LiquidityPool's) minTick/maxTick
   onMinTickChange: (tick: number) => void;
   onMaxTickChange: (tick: number) => void;
   tokenDecimalsA: number;
   tokenDecimalsB: number;
   tickSpacing: number;
-  // chartMinTick / chartMaxTick define the actual range for the chart's X-axis domain (data fetching bounds)
   chartMinTick: number;
   chartMaxTick: number;
 }
@@ -43,16 +31,20 @@ interface LiquidityChartProps {
 const LiquidityChartComponent = ({
   histogramData,
   isLoading,
-  minTick, // Debounced minTick from parent (for marking active bars)
-  maxTick, // Debounced maxTick from parent (for marking active bars)
-  onMinTickChange, // Parent's debounced setters (will be setMinTick from LiquidityPool)
-  onMaxTickChange, // Parent's debounced setters (will be setMaxTick from LiquidityPool)
+  isFetching = false,
+  minTick,
+  maxTick,
+  onMinTickChange,
+  onMaxTickChange,
   tokenDecimalsA,
   tokenDecimalsB,
   tickSpacing,
-  chartMinTick, // Overall min tick for the X-axis (from leftMostTick)
-  chartMaxTick, // Overall max tick for the X-axis (from rightMostTick)
+  chartMinTick,
+  chartMaxTick,
 }: LiquidityChartProps) => {
+  // State to track if the slider is currently being dragged
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
   // === Internal state for the slider's immediate visual updates ===
   // These will update rapidly as the slider moves
   const [sliderMinPrice, setSliderMinPrice] = useState<number>(0);
@@ -60,25 +52,27 @@ const LiquidityChartComponent = ({
   const [sliderValue, setSliderValue] = useState<number[]>([]);
 
   // Calculate the overall min/max bounds for the slider's scale
-  // These are derived from the `chartMinTick` and `chartMaxTick` props,
-  // which define the overall data range fetched for the histogram.
   const sliderPriceBounds = useMemo(() => {
-    if (!histogramData.length || (chartMinTick === 0 && chartMaxTick === 0)) {
+    if (!histogramData.length && chartMinTick === 0 && chartMaxTick === 0) {
       // Return sensible defaults if data isn't ready or ticks are zero
-      return { min: 0, max: 1000 };
+      return { min: 0, max: 100 }; // A small range if no data, to avoid division by zero or huge ranges for step.
     }
 
-    // Convert the chart's overall tick range to price for the slider's bounds
     const minPossiblePrice = PriceMath.tickIndexToPrice(
       chartMinTick,
       tokenDecimalsA,
       tokenDecimalsB
     ).toNumber();
-    const maxPossiblePrice = PriceMath.tickIndexToPrice(
+    let maxPossiblePrice = PriceMath.tickIndexToPrice(
       chartMaxTick,
       tokenDecimalsA,
       tokenDecimalsB
     ).toNumber();
+
+    if (minPossiblePrice >= maxPossiblePrice) {
+      // Ensure maxPossiblePrice is strictly greater than minPossiblePrice for slider functionality
+      maxPossiblePrice = minPossiblePrice + 1;
+    }
 
     return {
       min: minPossiblePrice,
@@ -93,11 +87,14 @@ const LiquidityChartComponent = ({
   ]);
 
   // Effect to INITIALIZE `sliderValue` and `sliderMinPrice`/`sliderMaxPrice`
-  // when the parent's `minTick`/`maxTick` first become available (after initial load)
-  // or if they change (e.g., via PriceRange input or RangeToggle)
+  // This will only run if the slider is NOT currently being dragged.
   useEffect(() => {
+    // Crucial: Do not update internal slider state if currently dragging
+    if (isDragging) {
+      return;
+    }
+
     if (minTick !== 0 || maxTick !== 0) {
-      // Check if valid ticks are provided
       const initialMinPrice = PriceMath.tickIndexToPrice(
         minTick,
         tokenDecimalsA,
@@ -109,32 +106,68 @@ const LiquidityChartComponent = ({
         tokenDecimalsB
       ).toNumber();
 
-      setSliderMinPrice(initialMinPrice);
-      setSliderMaxPrice(initialMaxPrice);
-      setSliderValue([initialMinPrice, initialMaxPrice]);
+      // Only update if the current slider values are meaningfully different
+      // from what the parent's minTick/maxTick represent.
+      // Use a small epsilon for floating point comparison to avoid
+      // tiny, imperceptible differences causing unnecessary re-renders.
+      const epsilon = 1e-9;
+      if (
+        Math.abs(sliderMinPrice - initialMinPrice) > epsilon ||
+        Math.abs(sliderMaxPrice - initialMaxPrice) > epsilon ||
+        sliderValue[0] === undefined // Initial render case
+      ) {
+        setSliderMinPrice(initialMinPrice);
+        setSliderMaxPrice(initialMaxPrice);
+        setSliderValue([initialMinPrice, initialMaxPrice]);
+      }
+    } else {
+      // Handle initial state where minTick/maxTick might be 0, but you want to set bounds
+      // This part depends on desired default behavior.
+      // For now, if no ticks, we might just use the overall chart bounds.
+      if (sliderValue[0] === undefined) {
+        // Only set initial if not already set
+        setSliderMinPrice(sliderPriceBounds.min);
+        setSliderMaxPrice(sliderPriceBounds.max);
+        setSliderValue([sliderPriceBounds.min, sliderPriceBounds.max]);
+      }
     }
-  }, [minTick, maxTick, tokenDecimalsA, tokenDecimalsB]); // Depends on main min/max ticks from parent
+  }, [
+    minTick,
+    maxTick,
+    tokenDecimalsA,
+    tokenDecimalsB,
+    isDragging, // Add isDragging to dependencies
+    sliderMinPrice,
+    sliderMaxPrice,
+    sliderValue, // Add sliderValue to avoid infinite loop when it changes
+    sliderPriceBounds.min, // Add bounds for the else clause
+    sliderPriceBounds.max, // Add bounds for the else clause
+  ]);
 
-  // Debounced functions to call the parent's `onMinTickChange`/`onMaxTickChange`
-  const debouncedSetParentTicks = useMemo(
-    () =>
-      debounce((newMinTick: number, newMaxTick: number) => {
-        onMinTickChange(newMinTick);
-        onMaxTickChange(newMaxTick);
-        console.log(
-          "Debounced update to parent (minTick/maxTick):",
-          newMinTick,
-          newMaxTick
-        );
-      }, 200), // Adjust debounce delay as needed (200-300ms)
-    [onMinTickChange, onMaxTickChange] // Dependencies are the stable parent callbacks
-  );
-
-  // Handler for direct slider updates (called rapidly by MUI Slider)
+  // Handler for direct slider updates (called rapidly by MUI Slider when dragging)
   const handleSliderChange = useCallback(
     (_: Event, newValue: number | number[]) => {
+      // Set dragging state to true
+      setIsDragging(true);
+
       const values = newValue as number[];
       setSliderValue(values); // Update internal state immediately for smooth dragging
+      setSliderMinPrice(values[0]); // Update temp price displays
+      setSliderMaxPrice(values[1]); // Update temp price displays
+    },
+    []
+  );
+
+  // Handler for when the user LETS GO of the slider (committing the change)
+  const handleSliderChangeCommitted = useCallback(
+    (
+      _: Event | React.SyntheticEvent<Element, Event>,
+      newValue: number | number[]
+    ) => {
+      // Set dragging state back to false
+      setIsDragging(false);
+
+      const values = newValue as number[];
 
       // Convert prices back to initializable ticks
       const newMinTickConverted = PriceMath.priceToInitializableTickIndex(
@@ -150,19 +183,26 @@ const LiquidityChartComponent = ({
         tickSpacing
       );
 
-      // Store these converted ticks for the debounced update
-      setSliderMinPrice(values[0]); // Update temp price displays
-      setSliderMaxPrice(values[1]); // Update temp price displays
-
-      // Call the debounced function to update the parent's state
-      debouncedSetParentTicks(newMinTickConverted, newMaxTickConverted);
+      // Call the parent's functions directly
+      onMinTickChange(newMinTickConverted);
+      onMaxTickChange(newMaxTickConverted);
+      console.log(
+        "Update to parent (minTick/maxTick) committed:",
+        newMinTickConverted,
+        newMaxTickConverted
+      );
     },
-    [debouncedSetParentTicks, tokenDecimalsA, tokenDecimalsB, tickSpacing]
+    [
+      onMinTickChange,
+      onMaxTickChange,
+      tokenDecimalsA,
+      tokenDecimalsB,
+      tickSpacing,
+    ]
   );
 
   // Memoize the actual chart rendering content
   const chartContent = useMemo(() => {
-    // Determine the X-axis domain based on the chartMinTick/chartMaxTick props
     const xAxisDomainMinPrice = PriceMath.tickIndexToPrice(
       chartMinTick,
       tokenDecimalsA,
@@ -187,7 +227,7 @@ const LiquidityChartComponent = ({
             fontSize={10}
             interval="preserveStartEnd"
             type="number"
-            domain={[xAxisDomainMinPrice, xAxisDomainMaxPrice]} // Use calculated domain
+            domain={[xAxisDomainMinPrice, xAxisDomainMaxPrice]}
             tickFormatter={(value) => value.toFixed(2)}
           />
           <Tooltip
@@ -197,22 +237,23 @@ const LiquidityChartComponent = ({
               borderRadius: "4px",
             }}
             labelStyle={{ color: "#46EB80" }}
-            formatter={(value: any) => [value.toFixed(2), "Liquidity"]}
+            formatter={(value: number) => [value.toFixed(2), "Liquidity"]}
+            isAnimationActive={false}
           />
           <Bar
             dataKey="liquidity"
             fill="#46EB80"
-            opacity={0.8}
+            opacity={isFetching ? 0.5 : 0.8}
             name="Liquidity (Millions)"
+            isAnimationActive={false}
           >
-            {/* Color cells based on the user's selected range (minTick/maxTick from props) */}
             {histogramData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
                 fill={
                   entry.tick >= minTick && entry.tick <= maxTick
-                    ? "#46EB80" // Active range color
-                    : "#666666" // Inactive range color
+                    ? "#46EB80"
+                    : "#333"
                 }
               />
             ))}
@@ -222,13 +263,13 @@ const LiquidityChartComponent = ({
     );
   }, [
     histogramData,
-    minTick,
-    maxTick,
     chartMinTick,
     chartMaxTick,
     tokenDecimalsA,
     tokenDecimalsB,
-    tickSpacing,
+    minTick,
+    maxTick,
+    isFetching,
   ]);
 
   if (isLoading) {
@@ -274,16 +315,21 @@ const LiquidityChartComponent = ({
       </Typography>
       <Box sx={{ position: "relative", width: "100%", height: 400 }}>
         {chartContent}
-        {/* The Slider remains here, positioned absolutely */}
         <Slider
           value={sliderValue}
           onChange={handleSliderChange}
+          onChangeCommitted={handleSliderChangeCommitted}
           min={sliderPriceBounds.min}
           max={sliderPriceBounds.max}
-          step={(sliderPriceBounds.max - sliderPriceBounds.min) / 1000} // Dynamic step based on range
+          // The step should be a reasonable value for the price range
+          // Calculate a dynamic step based on the full range
+          step={
+            (sliderPriceBounds.max - sliderPriceBounds.min) / 1000 || // Divide by 1000 to get fine control
+            0.01 // Fallback step to prevent NaN if range is 0 or very small
+          }
           valueLabelDisplay="auto"
           valueLabelFormat={(value) => value.toFixed(2)}
-          disableSwap // Ensures min handle stays left of max handle
+          disableSwap
           sx={{
             position: "absolute",
             color: "#46EB80",
@@ -319,7 +365,6 @@ const LiquidityChartComponent = ({
   );
 };
 
-// Wrap the named component with React.memo
 const MemoizedLiquidityChart = React.memo(LiquidityChartComponent);
 
 export default MemoizedLiquidityChart;

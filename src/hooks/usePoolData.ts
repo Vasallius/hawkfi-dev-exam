@@ -5,94 +5,69 @@ import {
   WhirlpoolContext,
 } from "@orca-so/whirlpools-sdk";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { PoolDisplayInfo } from "../types/pool";
 import { RPC_ENDPOINT, SOL_USDC_POOL_ADDRESS } from "../utils/constants";
 import { DummyWallet, getDisplaySymbol, getTokenDecimals } from "../utils/pool";
 
-interface UsePoolDataResult {
-  poolInfo: PoolDisplayInfo | null;
-  ctx: WhirlpoolContext | null;
-  loading: boolean;
-  error: string | null;
-}
+const fetchPoolData = async () => {
+  const connection = new Connection(RPC_ENDPOINT, "confirmed");
+  const wallet = new DummyWallet();
+  const whirlpoolContext = WhirlpoolContext.from(
+    connection,
+    wallet,
+    ORCA_WHIRLPOOL_PROGRAM_ID
+  );
 
-export function usePoolData(): UsePoolDataResult {
-  const [poolInfo, setPoolInfo] = useState<PoolDisplayInfo | null>(null);
-  const [ctx, setCtx] = useState<WhirlpoolContext | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const poolAddress = new PublicKey(SOL_USDC_POOL_ADDRESS);
+  const fetchedPoolData = await whirlpoolContext.fetcher.getPool(poolAddress);
 
-  useEffect(() => {
-    const fetchPoolAndInitializeContext = async () => {
-      setError(null);
-      setLoading(true);
-      try {
-        const connection = new Connection(RPC_ENDPOINT, "confirmed");
-        const wallet = new DummyWallet();
-        // Initialize context first
-        const whirlpoolContext = WhirlpoolContext.from(
-          connection,
-          wallet,
-          ORCA_WHIRLPOOL_PROGRAM_ID
-        );
-        setCtx(whirlpoolContext);
+  if (!fetchedPoolData) {
+    throw new Error("Failed to fetch pool data");
+  }
 
-        // Proceed to fetch pool data using the initialized context
-        const poolAddress = new PublicKey(SOL_USDC_POOL_ADDRESS);
-        const fetchedPoolData = await whirlpoolContext.fetcher.getPool(
-          poolAddress
-        );
-        if (!fetchedPoolData) {
-          throw new Error("Failed to fetch pool data");
-        }
+  const decimalsA = await getTokenDecimals(
+    connection,
+    fetchedPoolData.tokenMintA
+  );
+  const decimalsB = await getTokenDecimals(
+    connection,
+    fetchedPoolData.tokenMintB
+  );
 
-        const decimalsA = await getTokenDecimals(
-          connection, // Use connection from context
-          fetchedPoolData.tokenMintA
-        );
-        const decimalsB = await getTokenDecimals(
-          connection, // Use connection from context
-          fetchedPoolData.tokenMintB
-        );
+  const price = PriceMath.sqrtPriceX64ToPrice(
+    fetchedPoolData.sqrtPrice,
+    decimalsA,
+    decimalsB
+  );
 
-        const price = PriceMath.sqrtPriceX64ToPrice(
-          fetchedPoolData.sqrtPrice,
-          decimalsA,
-          decimalsB
-        );
+  return {
+    poolInfo: {
+      poolAddress: fetchedPoolData.whirlpoolsConfig.toBase58(),
+      tokenA: {
+        mint: fetchedPoolData.tokenMintA,
+        symbol: getDisplaySymbol(fetchedPoolData.tokenMintA),
+        decimals: decimalsA,
+      },
+      tokenB: {
+        mint: fetchedPoolData.tokenMintB,
+        symbol: getDisplaySymbol(fetchedPoolData.tokenMintB),
+        decimals: decimalsB,
+      },
+      currentPrice: price.toSignificantDigits(8).toString(),
+      tickCurrentIndex: fetchedPoolData.tickCurrentIndex,
+      tickSpacing: fetchedPoolData.tickSpacing,
+      liquidity: fetchedPoolData.liquidity.toString(),
+    } as PoolDisplayInfo,
+    ctx: whirlpoolContext,
+  };
+};
 
-        const displayInfo: PoolDisplayInfo = {
-          poolAddress: fetchedPoolData.whirlpoolsConfig.toBase58(),
-          tokenA: {
-            mint: fetchedPoolData.tokenMintA,
-            symbol: getDisplaySymbol(fetchedPoolData.tokenMintA),
-            decimals: decimalsA,
-          },
-          tokenB: {
-            mint: fetchedPoolData.tokenMintB,
-            symbol: getDisplaySymbol(fetchedPoolData.tokenMintB),
-            decimals: decimalsB,
-          },
-          currentPrice: price.toSignificantDigits(8).toString(),
-          tickCurrentIndex: fetchedPoolData.tickCurrentIndex,
-          tickSpacing: fetchedPoolData.tickSpacing,
-          liquidity: fetchedPoolData.liquidity.toString(),
-        };
-
-        setPoolInfo(displayInfo);
-      } catch (err) {
-        console.error("Error fetching pool data or initializing context:", err);
-        setError(err instanceof Error ? err.message : String(err));
-        setPoolInfo(null);
-        setCtx(null); // Ensure ctx is null on any error
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPoolAndInitializeContext();
-  }, []);
-
-  return { poolInfo, ctx, loading, error }; // Return ctx
+export function usePoolData() {
+  return useQuery({
+    queryKey: ["poolData"],
+    queryFn: fetchPoolData,
+    staleTime: 1000 * 30, // 30 seconds
+    gcTime: 1000 * 60 * 5, // 5 minutes
+  });
 }
