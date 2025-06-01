@@ -1,157 +1,175 @@
+// src/components/LiquidityPool.tsx
 "use client";
 import { Box, CircularProgress, Typography } from "@mui/material";
-import {
-  ORCA_WHIRLPOOL_PROGRAM_ID,
-  PriceMath,
-  WhirlpoolContext,
-} from "@orca-so/whirlpools-sdk";
-import { Connection, PublicKey } from "@solana/web3.js";
-import { Decimal } from "decimal.js";
-import { useEffect, useState } from "react";
-import { HistogramBin, PoolDisplayInfo } from "../types/pool";
-import { RPC_ENDPOINT, SOL_USDC_POOL_ADDRESS } from "../utils/constants";
-import {
-  DummyWallet,
-  createHistogramBins,
-  createLiquidityHistogram,
-  getDisplaySymbol,
-  getTokenDecimals,
-} from "../utils/pool";
+import { PriceMath } from "@orca-so/whirlpools-sdk";
+import Decimal from "decimal.js";
+import { useEffect, useMemo, useState } from "react";
+
+// Import the hooks
+import { useLiquidityHistogram } from "../hooks/useLiquidityHistogram";
+import { usePoolData } from "../hooks/usePoolData";
+
+// Import other component parts
 import CurrentPoolPrice from "./CurrentPoolPrice";
-import LiquidityChart from "./LiquidityChart";
+import LiquidityChart from "./LiquidityChart"; // LiquidityChart now contains the slider
 import PriceRange from "./PriceRange";
 import PriceRangeHeader from "./PriceRangeHeader";
 import RangeToggle from "./RangeToggle";
 
-export default function PoolInterface() {
-  const [poolInfo, setPoolInfo] = useState<PoolDisplayInfo | null>(null);
-  const [histogramData, setHistogramData] = useState<HistogramBin[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [histogramLoading, setHistogramLoading] = useState<boolean>(false);
+export default function LiquidityPool() {
+  const {
+    poolInfo,
+    ctx, // Get the context object here
+    loading: poolLoading,
+    error: poolError,
+  } = usePoolData();
+
   const [rangeType, setRangeType] = useState<"customRange" | "fullRange">(
     "customRange"
   );
 
+  // These are the main, official min/max ticks for the user's selected range.
+  // They are updated by LiquidityChart's debounced handlers, or RangeInputSection.
   const [minTick, setMinTick] = useState<number>(0);
   const [maxTick, setMaxTick] = useState<number>(0);
-  const [rightMostPrice, setRightMostPrice] = useState<string>("0");
 
+  // Memoized current price in Decimal format
+  const currentPriceDecimal = useMemo(() => {
+    if (!poolInfo) return new Decimal(0);
+    return new Decimal(poolInfo.currentPrice);
+  }, [poolInfo]);
+
+  // Effect to set initial minTick and maxTick when poolInfo becomes available
   useEffect(() => {
-    const fetchPoolDataAndHistogram = async () => {
-      setError(null);
-      setLoading(true);
+    if (poolInfo && !currentPriceDecimal.isZero()) {
+      const initialMinPrice = currentPriceDecimal.mul(0.9);
+      const initialMaxPrice = currentPriceDecimal.mul(1.1);
 
-      try {
-        const connection = new Connection(RPC_ENDPOINT, "confirmed");
-        const wallet = new DummyWallet();
-        const ctx = WhirlpoolContext.from(
-          connection,
-          wallet,
-          ORCA_WHIRLPOOL_PROGRAM_ID
-        );
+      const initialMinTick = PriceMath.priceToInitializableTickIndex(
+        initialMinPrice,
+        poolInfo.tokenA.decimals,
+        poolInfo.tokenB.decimals,
+        poolInfo.tickSpacing
+      );
+      const initialMaxTick = PriceMath.priceToInitializableTickIndex(
+        initialMaxPrice,
+        poolInfo.tokenA.decimals,
+        poolInfo.tokenB.decimals,
+        poolInfo.tickSpacing
+      );
 
-        const poolAddress = new PublicKey(SOL_USDC_POOL_ADDRESS);
-        const fetchedPoolData = await ctx.fetcher.getPool(poolAddress);
-        if (!fetchedPoolData) {
-          throw new Error("Failed to fetch pool data");
-        }
+      setMinTick(initialMinTick);
+      setMaxTick(initialMaxTick);
+      console.log(
+        "Initial user-controlled ticks set:",
+        initialMinTick,
+        initialMaxTick
+      );
+    }
+  }, [poolInfo, currentPriceDecimal]);
 
-        const decimalsA = await getTokenDecimals(
-          connection,
-          fetchedPoolData.tokenMintA
-        );
-        const decimalsB = await getTokenDecimals(
-          connection,
-          fetchedPoolData.tokenMintB
-        );
+  // === Derived values (from minTick/maxTick and poolInfo) ===
 
-        const price = PriceMath.sqrtPriceX64ToPrice(
-          fetchedPoolData.sqrtPrice,
-          decimalsA,
-          decimalsB
-        );
+  const minPrice = useMemo(() => {
+    if (!poolInfo) return new Decimal(0);
+    return PriceMath.tickIndexToPrice(
+      minTick,
+      poolInfo.tokenA.decimals,
+      poolInfo.tokenB.decimals
+    );
+  }, [minTick, poolInfo]);
 
-        const currentPrice = new Decimal(price.toString());
-        const minPrice = currentPrice.mul(0.9);
-        const maxPrice = currentPrice.mul(1.1);
+  const maxPrice = useMemo(() => {
+    if (!poolInfo) return new Decimal(0);
+    return PriceMath.tickIndexToPrice(
+      maxTick,
+      poolInfo.tokenA.decimals,
+      poolInfo.tokenB.decimals
+    );
+  }, [maxTick, poolInfo]);
 
-        const minPriceTick = PriceMath.priceToInitializableTickIndex(
-          minPrice,
-          decimalsA,
-          decimalsB,
-          fetchedPoolData.tickSpacing
-        );
-        const maxPriceTick = PriceMath.priceToInitializableTickIndex(
-          maxPrice,
-          decimalsA,
-          decimalsB,
-          fetchedPoolData.tickSpacing
-        );
+  const minPricePercentage = useMemo(() => {
+    if (!poolInfo || currentPriceDecimal.isZero()) return new Decimal(0);
+    return minPrice.div(currentPriceDecimal);
+  }, [minPrice, currentPriceDecimal, poolInfo]);
 
-        setMinTick(minPriceTick);
-        setMaxTick(maxPriceTick);
+  const maxPricePercentage = useMemo(() => {
+    if (!poolInfo || currentPriceDecimal.isZero()) return new Decimal(0);
+    return maxPrice.div(currentPriceDecimal);
+  }, [maxPrice, currentPriceDecimal, poolInfo]);
 
-        console.log("minmaxtick", minPriceTick, maxPriceTick);
+  const leftMostPrice = useMemo(() => {
+    if (!poolInfo || currentPriceDecimal.isZero()) return new Decimal(0);
+    return minPricePercentage.minus(0.1).times(currentPriceDecimal);
+  }, [minPricePercentage, currentPriceDecimal, poolInfo]);
 
-        const poolDisplayInfo: PoolDisplayInfo = {
-          poolAddress: fetchedPoolData.whirlpoolsConfig.toBase58(),
-          tokenA: {
-            mint: fetchedPoolData.tokenMintA,
-            symbol: getDisplaySymbol(fetchedPoolData.tokenMintA),
-            decimals: decimalsA,
-          },
-          tokenB: {
-            mint: fetchedPoolData.tokenMintB,
-            symbol: getDisplaySymbol(fetchedPoolData.tokenMintB),
-            decimals: decimalsB,
-          },
-          currentPrice: price.toSignificantDigits(8).toString(),
-          tickCurrentIndex: fetchedPoolData.tickCurrentIndex,
-          tickSpacing: fetchedPoolData.tickSpacing,
-          liquidity: fetchedPoolData.liquidity.toString(),
-        };
+  const rightMostPrice = useMemo(() => {
+    if (!poolInfo || currentPriceDecimal.isZero()) return new Decimal(0);
+    return maxPricePercentage.plus(0.1).times(currentPriceDecimal);
+  }, [maxPricePercentage, currentPriceDecimal, poolInfo]);
 
-        setPoolInfo(poolDisplayInfo);
-        setLoading(false);
+  const leftMostTick = useMemo(() => {
+    if (!poolInfo) return 0;
+    return PriceMath.priceToInitializableTickIndex(
+      leftMostPrice,
+      poolInfo.tokenA.decimals,
+      poolInfo.tokenB.decimals,
+      poolInfo.tickSpacing
+    );
+  }, [leftMostPrice, poolInfo]);
 
-        setHistogramLoading(true);
-        const liquidityPoints = await createLiquidityHistogram(
-          poolDisplayInfo,
-          ctx,
-          poolAddress,
-          fetchedPoolData.tickCurrentIndex,
-          fetchedPoolData.tickSpacing,
-          fetchedPoolData.liquidity.toString(),
-          decimalsA,
-          decimalsB
-        );
+  const rightMostTick = useMemo(() => {
+    if (!poolInfo) return 0;
+    return PriceMath.priceToInitializableTickIndex(
+      rightMostPrice,
+      poolInfo.tokenA.decimals,
+      poolInfo.tokenB.decimals,
+      poolInfo.tickSpacing
+    );
+  }, [rightMostPrice, poolInfo]);
 
-        const histogramBins = createHistogramBins(liquidityPoints);
-        setHistogramData(histogramBins);
-        setHistogramLoading(false);
-      } catch (err) {
-        console.error("Error in fetchPoolDataAndHistogram:", err);
-        setError(err instanceof Error ? err.message : String(err));
-        setLoading(false);
-        setHistogramLoading(false);
-      }
-    };
+  // === Fetch histogram data using the hook ===
+  const {
+    histogramData,
+    loading: histogramLoading,
+    error: histogramError,
+  } = useLiquidityHistogram({
+    poolInfo,
+    ctx, // Pass the context received from usePoolData
+    chartMinTick: leftMostTick, // The absolute range for the chart to display
+    chartMaxTick: rightMostTick,
+    userMinTick: minTick, // The user's currently selected range (for marking active bins)
+    userMaxTick: maxTick,
+  });
 
-    fetchPoolDataAndHistogram();
-  }, []);
+  // Combine errors for display
+  const combinedError = poolError || histogramError;
 
-  if (error) {
-    return <Typography sx={{ color: "red", mb: 2 }}>Error: {error}</Typography>;
+  // Debugging logs for derived ticks
+  useEffect(() => {
+    if (poolInfo) {
+      console.log("Chart Display Range (Ticks):", leftMostTick, rightMostTick);
+    }
+  }, [leftMostTick, rightMostTick, poolInfo]);
+
+  // === Conditional Render Blocking ===
+  if (combinedError) {
+    return (
+      <Typography sx={{ color: "red", mb: 2 }}>
+        Error: {combinedError}
+      </Typography>
+    );
   }
 
-  if (loading || !poolInfo) {
+  // Display loading state until basic poolInfo (and ctx) is available
+  if (poolLoading || !poolInfo || !ctx) {
     return (
       <Box
         sx={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          minHeight: "100vh",
         }}
       >
         <CircularProgress size={20} sx={{ mr: 1 }} />
@@ -160,6 +178,7 @@ export default function PoolInterface() {
     );
   }
 
+  // === Main Component Render (only when all required data is available) ===
   return (
     <Box sx={{ width: "100%", maxWidth: 1200, mx: "auto", p: 3 }}>
       <PriceRangeHeader />
@@ -172,16 +191,27 @@ export default function PoolInterface() {
         <LiquidityChart
           histogramData={histogramData}
           isLoading={histogramLoading}
+          minTick={minTick} // Pass the main, debounced user-selected range
+          maxTick={maxTick} // Pass the main, debounced user-selected range
+          onMinTickChange={setMinTick} // Pass direct setters for LiquidityChart to debounce internally
+          onMaxTickChange={setMaxTick} // Pass direct setters for LiquidityChart to debounce internally
+          tokenDecimalsA={poolInfo.tokenA.decimals}
+          tokenDecimalsB={poolInfo.tokenB.decimals}
+          tickSpacing={poolInfo.tickSpacing}
+          chartMinTick={leftMostTick} // Chart's overall X-axis domain (from data fetch range)
+          chartMaxTick={rightMostTick} // Chart's overall X-axis domain (from data fetch range)
         />
       )}
 
-      <PriceRange
+      <PriceRange // KEPT ORIGINAL NAME
         currentPrice={poolInfo.currentPrice}
         tickSpacing={poolInfo.tickSpacing}
-        minTick={minTick}
-        maxTick={maxTick}
-        onMinTickChange={setMinTick}
-        onMaxTickChange={setMaxTick}
+        minTick={minTick} // Pass the main, debounced ticks for input fields
+        maxTick={maxTick} // Pass the main, debounced ticks for input fields
+        onMinTickChange={setMinTick} // Direct setters for manual input
+        onMaxTickChange={setMaxTick} // Direct setters for manual input
+        tokenDecimalsA={poolInfo.tokenA.decimals} // NEW: Pass decimals for conversion
+        tokenDecimalsB={poolInfo.tokenB.decimals} // NEW: Pass decimals for conversion
       />
     </Box>
   );

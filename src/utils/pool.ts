@@ -52,6 +52,114 @@ export const getDisplaySymbol = (mintAddress: PublicKey | undefined) => {
     : mintAddress.toBase58().substring(0, 6) + "...";
 };
 
+export async function fetchWhirlpoolTickArraysAndLiquidity(
+  ctx: WhirlpoolContext,
+  poolAddress: PublicKey,
+  startTickFetch: number, // The absolute start tick for fetching data
+  endTickFetch: number, // The absolute end tick for fetching data
+  tokenDecimalsA: number,
+  tokenDecimalsB: number,
+  tickSpacing: number
+): Promise<LiquidityPoint[]> {
+  console.log(
+    "Fetching liquidity data for range (raw):",
+    startTickFetch,
+    "-",
+    endTickFetch
+  );
+
+  const tickIndices: number[] = [];
+  // Ensure we get all initializable ticks within the *exact* range provided
+  for (
+    let tick = TickUtil.getInitializableTickIndex(startTickFetch, tickSpacing);
+    tick <= endTickFetch;
+    tick = TickUtil.getNextInitializableTickIndex(tick, tickSpacing)
+  ) {
+    tickIndices.push(tick);
+  }
+
+  // Get unique start tick indices of tick-arrays to minimize RPC calls
+  const uniqueStartTicks = new Set<number>();
+  tickIndices.forEach((tickIndex) => {
+    const startTickIndex = TickUtil.getStartTickIndex(tickIndex, tickSpacing);
+    uniqueStartTicks.add(startTickIndex);
+  });
+
+  const tickArrayPDAs = Array.from(uniqueStartTicks).map((startTick) =>
+    PDAUtil.getTickArray(ctx.program.programId, poolAddress, startTick)
+  );
+
+  const tickArrayAddresses = tickArrayPDAs.map((pda) => pda.publicKey);
+  const tickArraysData = await ctx.fetcher.getTickArrays(tickArrayAddresses);
+
+  const tickArrayMap = new Map();
+  const uniqueStartTicksArray = Array.from(uniqueStartTicks);
+  tickArraysData.forEach((tickArrayData, index) => {
+    if (tickArrayData) {
+      tickArrayMap.set(uniqueStartTicksArray[index], tickArrayData);
+    }
+  });
+
+  const liquidityPoints: LiquidityPoint[] = [];
+  const sortedTickIndices = tickIndices.sort((a, b) => a - b);
+
+  for (const tickIndex of sortedTickIndices) {
+    try {
+      const startTickIndex = TickUtil.getStartTickIndex(tickIndex, tickSpacing);
+      const tickArrayData = tickArrayMap.get(startTickIndex);
+
+      // Default values if tickData is not found or not initialized
+      let liquidityNet = "0";
+      let liquidityGross = "0";
+
+      if (tickArrayData) {
+        const tickData = TickArrayUtil.getTickFromArray(
+          tickArrayData,
+          tickIndex,
+          tickSpacing
+        );
+        liquidityNet = tickData.initialized
+          ? tickData.liquidityNet.toString()
+          : "0";
+        liquidityGross = tickData.initialized
+          ? tickData.liquidityGross.toString()
+          : "0";
+      }
+
+      const price = PriceMath.tickIndexToPrice(
+        tickIndex,
+        tokenDecimalsA,
+        tokenDecimalsB
+      );
+
+      liquidityPoints.push({
+        tickIndex,
+        liquidityNet,
+        liquidityGross,
+        price: price.toNumber(),
+        priceFormatted: price.toFixed(6),
+        isActive: false,
+      });
+    } catch (error) {
+      console.error(`Error processing tick ${tickIndex}:`, error);
+      const price = PriceMath.tickIndexToPrice(
+        tickIndex,
+        tokenDecimalsA,
+        tokenDecimalsB
+      );
+      liquidityPoints.push({
+        tickIndex,
+        liquidityNet: "0",
+        liquidityGross: "0",
+        price: price.toNumber(),
+        priceFormatted: price.toFixed(6),
+        isActive: false,
+      });
+    }
+  }
+
+  return liquidityPoints.sort((a, b) => a.tickIndex - b.tickIndex);
+}
 export async function createLiquidityHistogram(
   poolDisplayInfo: PoolDisplayInfo,
   ctx: WhirlpoolContext,
