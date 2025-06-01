@@ -46,20 +46,11 @@ interface RangeToggleProps {
 }
 
 export default function RangeToggle({ value, onChange }: RangeToggleProps) {
-  const handleChange = (
-    _: React.MouseEvent<HTMLElement>,
-    newValue: "customRange" | "fullRange" | null
-  ) => {
-    if (newValue !== null) {
-      onChange(newValue);
-    }
-  };
-
   return (
     <StyledToggleButtonGroup
       value={value}
       exclusive
-      onChange={handleChange}
+      onChange={(_, newValue) => onChange(newValue)}
       aria-label="Segmented Button Group"
       fullWidth
     >

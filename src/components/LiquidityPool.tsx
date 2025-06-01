@@ -28,13 +28,12 @@ export default function LiquidityPool() {
   const [minTick, setMinTick] = useState<number>(0);
   const [maxTick, setMaxTick] = useState<number>(0);
 
-  // Memoized current price in Decimal format
+  // NEED TO MEMOIZE THIS BECAUSE OF NEW DECIMAL FUNCTION INSTANCE
   const currentPriceDecimal = useMemo(() => {
     if (!poolInfo) return new Decimal(0);
     return new Decimal(poolInfo.currentPrice);
   }, [poolInfo]);
 
-  // Effect to set initial minTick and maxTick when poolInfo becomes available
   useEffect(() => {
     if (poolInfo && !currentPriceDecimal.isZero()) {
       const initialMinPrice = currentPriceDecimal.mul(0.9);

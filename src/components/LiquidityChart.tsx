@@ -42,19 +42,16 @@ const LiquidityChartComponent = ({
   chartMinTick,
   chartMaxTick,
 }: LiquidityChartProps) => {
-  // State to track if the slider is currently being dragged
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
-  // === Internal state for the slider's immediate visual updates ===
-  // These will update rapidly as the slider moves
   const [sliderMinPrice, setSliderMinPrice] = useState<number>(0);
   const [sliderMaxPrice, setSliderMaxPrice] = useState<number>(0);
   const [sliderValue, setSliderValue] = useState<number[]>([]);
 
   // Calculate the overall min/max bounds for the slider's scale
   const sliderPriceBounds = useMemo(() => {
+    // Default case
     if (!histogramData.length && chartMinTick === 0 && chartMaxTick === 0) {
-      // Return sensible defaults if data isn't ready or ticks are zero
       return { min: 0, max: 100 }; // A small range if no data, to avoid division by zero or huge ranges for step.
     }
 
@@ -69,8 +66,8 @@ const LiquidityChartComponent = ({
       tokenDecimalsB
     ).toNumber();
 
+    // Auto adjust maxPossiblePrice if it's less than minPossiblePrice
     if (minPossiblePrice >= maxPossiblePrice) {
-      // Ensure maxPossiblePrice is strictly greater than minPossiblePrice for slider functionality
       maxPossiblePrice = minPossiblePrice + 1;
     }
 
@@ -86,10 +83,8 @@ const LiquidityChartComponent = ({
     histogramData.length,
   ]);
 
-  // Effect to INITIALIZE `sliderValue` and `sliderMinPrice`/`sliderMaxPrice`
-  // This will only run if the slider is NOT currently being dragged.
   useEffect(() => {
-    // Crucial: Do not update internal slider state if currently dragging
+    // Wait to run effect after dragging
     if (isDragging) {
       return;
     }
@@ -121,11 +116,8 @@ const LiquidityChartComponent = ({
         setSliderValue([initialMinPrice, initialMaxPrice]);
       }
     } else {
-      // Handle initial state where minTick/maxTick might be 0, but you want to set bounds
-      // This part depends on desired default behavior.
-      // For now, if no ticks, we might just use the overall chart bounds.
+      // Some default cause = just take bounds
       if (sliderValue[0] === undefined) {
-        // Only set initial if not already set
         setSliderMinPrice(sliderPriceBounds.min);
         setSliderMaxPrice(sliderPriceBounds.max);
         setSliderValue([sliderPriceBounds.min, sliderPriceBounds.max]);
@@ -136,24 +128,22 @@ const LiquidityChartComponent = ({
     maxTick,
     tokenDecimalsA,
     tokenDecimalsB,
-    isDragging, // Add isDragging to dependencies
+    isDragging,
     sliderMinPrice,
     sliderMaxPrice,
-    sliderValue, // Add sliderValue to avoid infinite loop when it changes
-    sliderPriceBounds.min, // Add bounds for the else clause
-    sliderPriceBounds.max, // Add bounds for the else clause
+    sliderValue,
+    sliderPriceBounds.min,
+    sliderPriceBounds.max,
   ]);
 
-  // Handler for direct slider updates (called rapidly by MUI Slider when dragging)
   const handleSliderChange = useCallback(
     (_: Event, newValue: number | number[]) => {
-      // Set dragging state to true
       setIsDragging(true);
 
       const values = newValue as number[];
-      setSliderValue(values); // Update internal state immediately for smooth dragging
-      setSliderMinPrice(values[0]); // Update temp price displays
-      setSliderMaxPrice(values[1]); // Update temp price displays
+      setSliderValue(values);
+      setSliderMinPrice(values[0]);
+      setSliderMaxPrice(values[1]);
     },
     []
   );
@@ -164,7 +154,6 @@ const LiquidityChartComponent = ({
       _: Event | React.SyntheticEvent<Element, Event>,
       newValue: number | number[]
     ) => {
-      // Set dragging state back to false
       setIsDragging(false);
 
       const values = newValue as number[];
@@ -183,14 +172,8 @@ const LiquidityChartComponent = ({
         tickSpacing
       );
 
-      // Call the parent's functions directly
       onMinTickChange(newMinTickConverted);
       onMaxTickChange(newMaxTickConverted);
-      console.log(
-        "Update to parent (minTick/maxTick) committed:",
-        newMinTickConverted,
-        newMaxTickConverted
-      );
     },
     [
       onMinTickChange,

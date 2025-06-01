@@ -9,15 +9,14 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 interface PriceRangeProps {
   currentPrice: string;
   tickSpacing: number;
-  minTick: number; // The official, debounced minTick from parent
-  maxTick: number; // The official, debounced maxTick from parent
-  onMinTickChange: (tick: number) => void; // Parent's setMinTick
-  onMaxTickChange: (tick: number) => void; // Parent's setMaxTick
-  tokenDecimalsA: number; // NEW: Added for price conversions
-  tokenDecimalsB: number; // NEW: Added for price conversions
+  minTick: number;
+  maxTick: number;
+  onMinTickChange: (tick: number) => void;
+  onMaxTickChange: (tick: number) => void;
+  tokenDecimalsA: number;
+  tokenDecimalsB: number;
 }
 
-// Named function component for memoization
 const PriceRangeComponent = ({
   currentPrice,
   tickSpacing,
@@ -25,24 +24,18 @@ const PriceRangeComponent = ({
   maxTick,
   onMinTickChange,
   onMaxTickChange,
-  tokenDecimalsA, // Use these props for conversions
-  tokenDecimalsB, // Use these props for conversions
+  tokenDecimalsA,
+  tokenDecimalsB,
 }: PriceRangeProps) => {
-  // Use local state for the input fields, holding PRICE strings for display
-  // This allows smooth typing without immediately affecting parent state or re-rendering everything
   const [localMinPriceInput, setLocalMinPriceInput] = useState<string>("");
   const [localMaxPriceInput, setLocalMaxPriceInput] = useState<string>("");
 
-  // Use a memoized version of currentPriceNum to avoid re-parsing on every render
   const currentPriceNum = useMemo(
     () => parseFloat(currentPrice),
     [currentPrice]
   );
 
-  // Effect to sync local input states with parent's minTick/maxTick props
   useEffect(() => {
-    // Only update if parent ticks are valid (not 0, which is initial state)
-    // and if decimals are known (from poolInfo)
     if (minTick !== 0 || maxTick !== 0) {
       const parentMinPrice = PriceMath.tickIndexToPrice(
         minTick,
@@ -55,8 +48,6 @@ const PriceRangeComponent = ({
         tokenDecimalsB
       ).toFixed(8);
 
-      // Only update local state if it's different from the parent's value
-      // This prevents input field cursor jumping when typing rapidly
       if (localMinPriceInput !== parentMinPrice) {
         setLocalMinPriceInput(parentMinPrice);
       }
@@ -64,26 +55,21 @@ const PriceRangeComponent = ({
         setLocalMaxPriceInput(parentMaxPrice);
       }
     } else {
-      // Optionally clear fields or set a default if ticks are 0
       if (localMinPriceInput !== "") setLocalMinPriceInput("");
       if (localMaxPriceInput !== "") setLocalMaxPriceInput("");
     }
-  }, [minTick, maxTick, tokenDecimalsA, tokenDecimalsB]); // Dependencies to re-run when ticks or decimals change
+  }, [minTick, maxTick, tokenDecimalsA, tokenDecimalsB]);
 
-  // Derived formatted prices from current minTick/maxTick props
-  // These are used for calculations like percentage
   const minPriceRaw = useMemo(() => {
-    // Ensure we have valid decimals before trying to calculate price
-    if (minTick === 0 && tokenDecimalsA === undefined) return new Decimal(0); // Fallback
+    if (minTick === 0 && tokenDecimalsA === undefined) return new Decimal(0);
     return PriceMath.tickIndexToPrice(minTick, tokenDecimalsA, tokenDecimalsB);
   }, [minTick, tokenDecimalsA, tokenDecimalsB]);
 
   const maxPriceRaw = useMemo(() => {
-    if (maxTick === 0 && tokenDecimalsA === undefined) return new Decimal(0); // Fallback
+    if (maxTick === 0 && tokenDecimalsA === undefined) return new Decimal(0);
     return PriceMath.tickIndexToPrice(maxTick, tokenDecimalsA, tokenDecimalsB);
   }, [maxTick, tokenDecimalsA, tokenDecimalsB]);
 
-  // Calculate percentage difference from current price
   const minPercent = useMemo(() => {
     if (currentPriceNum === 0) return "0.00";
     return (
@@ -100,7 +86,6 @@ const PriceRangeComponent = ({
     ).toFixed(2);
   }, [maxPriceRaw, currentPriceNum]);
 
-  // Handle increment/decrement
   const adjustTick = useCallback(
     (tick: number, increment: boolean) =>
       increment
@@ -109,72 +94,93 @@ const PriceRangeComponent = ({
     [tickSpacing]
   );
 
-  // Handle user input for price fields
   const handleMinPriceInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
-      setLocalMinPriceInput(value); // Update local state immediately
-
-      const parsedValue = new Decimal(value || "0");
-      if (
-        !parsedValue.isNaN() &&
-        tokenDecimalsA !== undefined &&
-        tokenDecimalsB !== undefined
-      ) {
-        try {
-          const newTick = PriceMath.priceToInitializableTickIndex(
-            parsedValue,
-            tokenDecimalsA,
-            tokenDecimalsB,
-            tickSpacing
-          );
-          // Only update parent if valid and does not exceed maxTick
-          if (newTick <= maxTick || maxTick === 0) {
-            // Allow setting if maxTick is still default 0
-            onMinTickChange(newTick);
-          }
-        } catch (error) {
-          console.error("Error converting min price input to tick:", error);
-        }
-      }
+      setLocalMinPriceInput(value);
     },
-    [onMinTickChange, maxTick, tokenDecimalsA, tokenDecimalsB, tickSpacing]
+    []
   );
 
   const handleMaxPriceInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
-      setLocalMaxPriceInput(value); // Update local state immediately
+      setLocalMaxPriceInput(value);
+    },
+    []
+  );
 
-      const parsedValue = new Decimal(value || "0");
-      if (
-        !parsedValue.isNaN() &&
-        tokenDecimalsA !== undefined &&
-        tokenDecimalsB !== undefined
-      ) {
-        try {
-          const newTick = PriceMath.priceToInitializableTickIndex(
-            parsedValue,
-            tokenDecimalsA,
-            tokenDecimalsB,
-            tickSpacing
-          );
-          // Only update parent if valid and not less than minTick
-          if (newTick >= minTick || minTick === 0) {
-            // Allow setting if minTick is still default 0
-            onMaxTickChange(newTick);
+  const handleMinPriceKeyPress = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        const parsedValue = new Decimal(localMinPriceInput || "0");
+        if (
+          !parsedValue.isNaN() &&
+          tokenDecimalsA !== undefined &&
+          tokenDecimalsB !== undefined
+        ) {
+          try {
+            const newTick = PriceMath.priceToInitializableTickIndex(
+              parsedValue,
+              tokenDecimalsA,
+              tokenDecimalsB,
+              tickSpacing
+            );
+            if (newTick <= maxTick || maxTick === 0) {
+              onMinTickChange(newTick);
+            }
+          } catch (error) {
+            console.error("Error converting min price input to tick:", error);
           }
-        } catch (error) {
-          console.error("Error converting max price input to tick:", error);
         }
       }
     },
-    [onMaxTickChange, minTick, tokenDecimalsA, tokenDecimalsB, tickSpacing]
+    [
+      localMinPriceInput,
+      onMinTickChange,
+      maxTick,
+      tokenDecimalsA,
+      tokenDecimalsB,
+      tickSpacing,
+    ]
   );
 
-  // Reset to initial range
+  const handleMaxPriceKeyPress = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        const parsedValue = new Decimal(localMaxPriceInput || "0");
+        if (
+          !parsedValue.isNaN() &&
+          tokenDecimalsA !== undefined &&
+          tokenDecimalsB !== undefined
+        ) {
+          try {
+            const newTick = PriceMath.priceToInitializableTickIndex(
+              parsedValue,
+              tokenDecimalsA,
+              tokenDecimalsB,
+              tickSpacing
+            );
+            if (newTick >= minTick || minTick === 0) {
+              onMaxTickChange(newTick);
+            }
+          } catch (error) {
+            console.error("Error converting max price input to tick:", error);
+          }
+        }
+      }
+    },
+    [
+      localMaxPriceInput,
+      onMaxTickChange,
+      minTick,
+      tokenDecimalsA,
+      tokenDecimalsB,
+      tickSpacing,
+    ]
+  );
+
   const handleReset = useCallback(() => {
-    // Ensure currentPriceNum is valid before resetting
     if (isNaN(currentPriceNum) || currentPriceNum === 0) return;
 
     const initialMinPrice = new Decimal(currentPriceNum).mul(0.9);
@@ -250,8 +256,9 @@ const PriceRangeComponent = ({
             </IconButton>
             <TextField
               fullWidth
-              value={localMinPriceInput} // Bind to local state
+              value={localMinPriceInput}
               onChange={handleMinPriceInput}
+              onKeyPress={handleMinPriceKeyPress}
               variant="standard"
               InputProps={{
                 disableUnderline: true,
@@ -332,8 +339,9 @@ const PriceRangeComponent = ({
             </IconButton>
             <TextField
               fullWidth
-              value={localMaxPriceInput} // Bind to local state
+              value={localMaxPriceInput}
               onChange={handleMaxPriceInput}
+              onKeyPress={handleMaxPriceKeyPress}
               variant="standard"
               InputProps={{
                 disableUnderline: true,
