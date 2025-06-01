@@ -37,7 +37,12 @@ export default function LiquidityPool() {
   }, [poolInfo]);
 
   useEffect(() => {
-    if (poolInfo && !currentPriceDecimal.isZero()) {
+    if (
+      poolInfo &&
+      !currentPriceDecimal.isZero() &&
+      minTick === 0 &&
+      maxTick === 0
+    ) {
       const initialMinPrice = currentPriceDecimal.mul(0.9);
       const initialMaxPrice = currentPriceDecimal.mul(1.1);
 
@@ -57,7 +62,7 @@ export default function LiquidityPool() {
       setMinTick(initialMinTick);
       setMaxTick(initialMaxTick);
     }
-  }, [poolInfo, currentPriceDecimal]);
+  }, [poolInfo, currentPriceDecimal, minTick, maxTick]);
 
   // === Derived values (from minTick/maxTick and poolInfo) ===
   const minPrice = useMemo(() => {
