@@ -7,6 +7,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,6 +27,7 @@ interface LiquidityChartProps {
   tickSpacing: number;
   chartMinTick: number;
   chartMaxTick: number;
+  currentTick?: number;
 }
 
 const LiquidityChartComponent = ({
@@ -41,6 +43,7 @@ const LiquidityChartComponent = ({
   tickSpacing,
   chartMinTick,
   chartMaxTick,
+  currentTick,
 }: LiquidityChartProps) => {
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
@@ -197,6 +200,15 @@ const LiquidityChartComponent = ({
       tokenDecimalsB
     ).toNumber();
 
+    const currentPrice =
+      currentTick !== undefined
+        ? PriceMath.tickIndexToPrice(
+            currentTick,
+            tokenDecimalsA,
+            tokenDecimalsB
+          ).toNumber()
+        : undefined;
+
     return (
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
@@ -223,6 +235,13 @@ const LiquidityChartComponent = ({
             formatter={(value: number) => [value.toFixed(2), "Liquidity"]}
             isAnimationActive={false}
           />
+          {currentPrice !== undefined && (
+            <ReferenceLine
+              x={currentPrice}
+              stroke="#FFFFFF"
+              strokeDasharray="3 3"
+            />
+          )}
           <Bar
             dataKey="liquidity"
             fill="#46EB80"
@@ -253,6 +272,7 @@ const LiquidityChartComponent = ({
     minTick,
     maxTick,
     isFetching,
+    currentTick,
   ]);
 
   if (isLoading) {

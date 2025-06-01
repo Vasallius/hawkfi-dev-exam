@@ -180,6 +180,7 @@ export default function LiquidityPool() {
           tickSpacing={poolInfo.tickSpacing}
           chartMinTick={leftMostTick}
           chartMaxTick={rightMostTick}
+          currentTick={poolInfo.tickCurrentIndex}
         />
       )}
 
