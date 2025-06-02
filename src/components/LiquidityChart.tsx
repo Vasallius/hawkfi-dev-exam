@@ -1,7 +1,7 @@
 import { Box, CircularProgress, Slider, Typography } from "@mui/material";
 import { PriceMath } from "@orca-so/whirlpools-sdk";
 import Decimal from "decimal.js";
-import React, { useCallback, useEffect, useMemo, useState } from "react"; // Import useRef
+import React, { useCallback, useEffect, useMemo, useState } from "react"; 
 import {
   Bar,
   BarChart,
@@ -324,8 +324,6 @@ const LiquidityChartComponent = ({
           onChangeCommitted={handleSliderChangeCommitted}
           min={sliderPriceBounds.min}
           max={sliderPriceBounds.max}
-          // The step should be a reasonable value for the price range
-          // Calculate a dynamic step based on the full range
           step={
             (sliderPriceBounds.max - sliderPriceBounds.min) / 1000 || // Divide by 1000 to get fine control
             0.01 // Fallback step to prevent NaN if range is 0 or very small
